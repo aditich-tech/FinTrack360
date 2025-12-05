@@ -2,6 +2,7 @@ package com.fintrack.dao;
 
 import com.fintrack.model.Income;
 import com.fintrack.util.DBConnection;
+import com.fintrack.util.EncryptionUtil;
 
 import java.sql.*;
 import java.util.ArrayList;
@@ -14,9 +15,9 @@ public class IncomeDAO {
         try (Connection conn = DBConnection.getConnection();
                 PreparedStatement stmt = conn.prepareStatement(sql)) {
             stmt.setInt(1, income.getUserId());
-            stmt.setBigDecimal(2, income.getAmount());
+            stmt.setString(2, EncryptionUtil.encrypt(String.valueOf(income.getAmount())));
             stmt.setString(3, income.getSource());
-            stmt.setString(4, income.getDescription());
+            stmt.setString(4, EncryptionUtil.encrypt(income.getDescription()));
             stmt.setDate(5, income.getDate());
             return stmt.executeUpdate() > 0;
         } catch (SQLException e) {
@@ -36,9 +37,9 @@ public class IncomeDAO {
                 Income income = new Income();
                 income.setId(rs.getInt("id"));
                 income.setUserId(rs.getInt("user_id"));
-                income.setAmount(rs.getBigDecimal("amount"));
+                income.setAmount(new java.math.BigDecimal(EncryptionUtil.decrypt(rs.getString("amount"))));
                 income.setSource(rs.getString("source"));
-                income.setDescription(rs.getString("description"));
+                income.setDescription(EncryptionUtil.decrypt(rs.getString("description")));
                 income.setDate(rs.getDate("date"));
                 income.setCreatedAt(rs.getTimestamp("created_at"));
                 incomes.add(income);

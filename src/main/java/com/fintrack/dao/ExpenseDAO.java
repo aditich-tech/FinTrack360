@@ -2,6 +2,7 @@ package com.fintrack.dao;
 
 import com.fintrack.model.Expense;
 import com.fintrack.util.DBConnection;
+import com.fintrack.util.EncryptionUtil;
 
 import java.sql.*;
 import java.util.ArrayList;
@@ -14,9 +15,9 @@ public class ExpenseDAO {
         try (Connection conn = DBConnection.getConnection();
                 PreparedStatement stmt = conn.prepareStatement(sql)) {
             stmt.setInt(1, expense.getUserId());
-            stmt.setBigDecimal(2, expense.getAmount());
+            stmt.setString(2, EncryptionUtil.encrypt(String.valueOf(expense.getAmount())));
             stmt.setString(3, expense.getCategory());
-            stmt.setString(4, expense.getDescription());
+            stmt.setString(4, EncryptionUtil.encrypt(expense.getDescription()));
             stmt.setDate(5, expense.getDate());
             return stmt.executeUpdate() > 0;
         } catch (SQLException e) {
@@ -36,9 +37,9 @@ public class ExpenseDAO {
                 Expense expense = new Expense();
                 expense.setId(rs.getInt("id"));
                 expense.setUserId(rs.getInt("user_id"));
-                expense.setAmount(rs.getBigDecimal("amount"));
+                expense.setAmount(new java.math.BigDecimal(EncryptionUtil.decrypt(rs.getString("amount"))));
                 expense.setCategory(rs.getString("category"));
-                expense.setDescription(rs.getString("description"));
+                expense.setDescription(EncryptionUtil.decrypt(rs.getString("description")));
                 expense.setDate(rs.getDate("date"));
                 expense.setCreatedAt(rs.getTimestamp("created_at"));
                 expenses.add(expense);

@@ -16,13 +16,13 @@ import javax.servlet.http.HttpServletResponse;
 import javax.servlet.http.HttpSession;
 import java.io.IOException;
 import java.io.PrintWriter;
-import java.math.BigDecimal;
-import java.sql.Date;
 import java.util.List;
 
 @WebServlet("/api/finance/*")
 public class FinanceServlet extends HttpServlet {
     private FinanceService financeService = new FinanceService();
+    private com.fintrack.dao.RecurringTransactionDAO recurringDAO = new com.fintrack.dao.RecurringTransactionDAO();
+    private com.fintrack.dao.UserDAO userDAO = new com.fintrack.dao.UserDAO();
     private Gson gson = new GsonBuilder().setDateFormat("yyyy-MM-dd").create();
 
     @Override
@@ -49,6 +49,9 @@ public class FinanceServlet extends HttpServlet {
         } else if ("/incomes".equals(path)) {
             List<com.fintrack.model.Income> incomes = financeService.getIncomes(user.getId());
             out.print(gson.toJson(incomes));
+        } else if ("/recurring".equals(path)) {
+            List<com.fintrack.model.RecurringTransaction> list = recurringDAO.getByUserId(user.getId());
+            out.print(gson.toJson(list));
         } else {
             resp.setStatus(404);
         }
@@ -98,12 +101,47 @@ public class FinanceServlet extends HttpServlet {
             } else {
                 resp.setStatus(500);
             }
+        } else if ("/recurring".equals(path)) {
+            com.fintrack.model.RecurringTransaction rt = gson.fromJson(req.getReader(),
+                    com.fintrack.model.RecurringTransaction.class);
+            rt.setUserId(user.getId());
+            if (recurringDAO.create(rt)) {
+                out.print(gson.toJson(new ResponseMessage("Recurring transaction created")));
+            } else {
+                resp.setStatus(500);
+            }
         } else {
             resp.setStatus(404);
         }
     }
 
+    @Override
+    protected void doDelete(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
+        User user = getAuthenticatedUser(req);
+        if (user == null) {
+            resp.sendError(401, "Unauthorized");
+            return;
+        }
+
+        String path = req.getPathInfo();
+        if ("/recurring".equals(path)) {
+            int id = Integer.parseInt(req.getParameter("id"));
+            if (recurringDAO.delete(id)) {
+                resp.setStatus(200);
+            } else {
+                resp.setStatus(500);
+            }
+        }
+    }
+
     private User getAuthenticatedUser(HttpServletRequest req) {
+        // First check request attributes (set by JwtAuthFilter)
+        String email = (String) req.getAttribute("userEmail");
+        if (email != null) {
+            return userDAO.findByEmail(email);
+        }
+
+        // Fallback to session (for legacy support or admin console if not updated)
         HttpSession session = req.getSession(false);
         return (session != null) ? (User) session.getAttribute("user") : null;
     }

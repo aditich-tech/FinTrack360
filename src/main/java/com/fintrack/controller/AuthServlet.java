@@ -11,7 +11,6 @@ import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import javax.servlet.http.HttpSession;
-import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.PrintWriter;
 
@@ -46,10 +45,16 @@ public class AuthServlet extends HttpServlet {
 
         User user = userService.login(email, password);
         if (user != null) {
-            HttpSession session = req.getSession();
-            session.setAttribute("user", user);
+            // Generate JWT Token
+            String token = com.fintrack.util.JwtUtil.generateToken(user.getEmail(), user.getRole());
+
+            // Create response object with user and token
+            JsonObject response = new JsonObject();
+            response.add("user", gson.toJsonTree(user));
+            response.addProperty("token", token);
+
             securityService.log(user.getId(), "LOGIN_SUCCESS", "User logged in successfully", req.getRemoteAddr());
-            out.print(gson.toJson(user));
+            out.print(gson.toJson(response));
         } else {
             securityService.log(0, "LOGIN_FAILURE", "Failed login attempt for email: " + email, req.getRemoteAddr());
             resp.setStatus(401);

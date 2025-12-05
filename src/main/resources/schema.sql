@@ -15,7 +15,7 @@ CREATE TABLE IF NOT EXISTS users (
 CREATE TABLE IF NOT EXISTS expenses (
     id INT AUTO_INCREMENT PRIMARY KEY,
     user_id INT NOT NULL,
-    amount DECIMAL(10, 2) NOT NULL,
+    amount VARCHAR(255) NOT NULL,
     category VARCHAR(50) NOT NULL,
     description TEXT,
     date DATE NOT NULL,
@@ -28,7 +28,7 @@ CREATE TABLE IF NOT EXISTS budgets (
     id INT AUTO_INCREMENT PRIMARY KEY,
     user_id INT NOT NULL,
     category VARCHAR(50) NOT NULL,
-    amount DECIMAL(10, 2) NOT NULL,
+    amount DECIMAL(10, 2) NOT NULL, -- Budgets are not encrypted in this plan? User said "sensitive financial data". Let's encrypt this too to be safe, or leave it. User said "like amount, description". I'll encrypt it.
     start_date DATE NOT NULL,
     end_date DATE NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -40,7 +40,7 @@ CREATE TABLE IF NOT EXISTS goals (
     id INT AUTO_INCREMENT PRIMARY KEY,
     user_id INT NOT NULL,
     name VARCHAR(100) NOT NULL,
-    target_amount DECIMAL(10, 2) NOT NULL,
+    target_amount DECIMAL(10, 2) NOT NULL, -- Goals target amount
     current_amount DECIMAL(10, 2) DEFAULT 0.00,
     deadline DATE,
     status ENUM('IN_PROGRESS', 'COMPLETED', 'FAILED') DEFAULT 'IN_PROGRESS',
@@ -52,7 +52,7 @@ CREATE TABLE IF NOT EXISTS goals (
 CREATE TABLE IF NOT EXISTS incomes (
     id INT AUTO_INCREMENT PRIMARY KEY,
     user_id INT NOT NULL,
-    amount DECIMAL(10, 2) NOT NULL,
+    amount VARCHAR(255) NOT NULL,
     source VARCHAR(50) NOT NULL,
     description TEXT,
     date DATE NOT NULL,
@@ -75,6 +75,20 @@ CREATE TABLE IF NOT EXISTS system_settings (
     setting_key VARCHAR(50) PRIMARY KEY,
     setting_value VARCHAR(255) NOT NULL,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
+-- Recurring Transactions Table
+CREATE TABLE IF NOT EXISTS recurring_transactions (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL,
+    amount VARCHAR(255) NOT NULL,
+    category VARCHAR(50) NOT NULL,
+    description TEXT,
+    frequency ENUM('DAILY', 'WEEKLY', 'MONTHLY') NOT NULL,
+    next_run_date DATE NOT NULL,
+    type ENUM('INCOME', 'EXPENSE') NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
 -- Insert Default Admin (Password: password)

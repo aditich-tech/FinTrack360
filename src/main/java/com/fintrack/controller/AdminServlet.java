@@ -81,6 +81,18 @@ public class AdminServlet extends HttpServlet {
     }
 
     private User getAuthenticatedAdmin(HttpServletRequest req) {
+        // Check for JWT attributes first (Stateless)
+        String role = (String) req.getAttribute("userRole");
+        String email = (String) req.getAttribute("userEmail");
+
+        if (role != null && email != null && "ADMIN".equals(role)) {
+            User user = new User();
+            user.setEmail(email);
+            user.setRole(role);
+            return user;
+        }
+
+        // Fallback to Session (Legacy/Stateful)
         HttpSession session = req.getSession(false);
         if (session != null) {
             User user = (User) session.getAttribute("user");

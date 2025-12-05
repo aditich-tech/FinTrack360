@@ -4,10 +4,25 @@ function App() {
     const [view, setView] = useState('login');
     const [user, setUser] = useState(null);
 
+    useEffect(() => {
+        const token = localStorage.getItem('token');
+        const storedUser = localStorage.getItem('user');
+        if (token && storedUser) {
+            setUser(JSON.parse(storedUser));
+            const parsedUser = JSON.parse(storedUser);
+            if (parsedUser.role === 'ADMIN') {
+                setView('admin');
+            } else {
+                setView('dashboard');
+            }
+        }
+    }, []);
+
     const navigate = (newView) => setView(newView);
 
     return (
         <div className="app-container">
+            <div className="scanline"></div>
             {view === 'login' && <Login navigate={navigate} setUser={setUser} />}
             {view === 'register' && <Register navigate={navigate} />}
             {view === 'dashboard' && <UserDashboard user={user} navigate={navigate} />}
@@ -15,6 +30,17 @@ function App() {
         </div>
     );
 }
+
+// Helper for authenticated requests
+const fetchWithAuth = async (url, options = {}) => {
+    const token = localStorage.getItem('token');
+    const headers = {
+        'Content-Type': 'application/json',
+        ...options.headers,
+        'Authorization': `Bearer ${token}`
+    };
+    return fetch(url, { ...options, headers });
+};
 
 function Login({ navigate, setUser }) {
     const [email, setEmail] = useState('');
@@ -30,8 +56,10 @@ function Login({ navigate, setUser }) {
             });
             const data = await res.json();
             if (res.ok) {
-                setUser(data);
-                if (data.role === 'ADMIN') {
+                localStorage.setItem('token', data.token);
+                localStorage.setItem('user', JSON.stringify(data.user));
+                setUser(data.user);
+                if (data.user.role === 'ADMIN') {
                     navigate('admin');
                 } else {
                     navigate('dashboard');
@@ -45,16 +73,18 @@ function Login({ navigate, setUser }) {
     };
 
     return (
-        <div className="container" style={{ maxWidth: '400px', marginTop: '100px' }}>
+        <div className="container" style={{ maxWidth: '400px', marginTop: '10vh' }}>
             <div className="card" style={{ textAlign: 'center' }}>
-                <h1 className="brand-title">FinTrack 360</h1>
-                <h2>Login</h2>
-                {error && <p style={{ color: 'red' }}>{error}</p>}
-                <input type="email" placeholder="Email" value={email} onChange={e => setEmail(e.target.value)} />
+                <h1 className="brand-title"><i className="fas fa-cube"></i> FinTrack 360</h1>
+                <h2><i className="fas fa-lock"></i> Secure Login</h2>
+                {error && <p className="text-danger">{error}</p>}
+                <input type="email" placeholder="Email Address" value={email} onChange={e => setEmail(e.target.value)} />
                 <input type="password" placeholder="Password" value={password} onChange={e => setPassword(e.target.value)} />
-                <button className="btn btn-primary" style={{ width: '100%' }} onClick={handleLogin}>Login</button>
-                <p style={{ textAlign: 'center', marginTop: '10px' }}>
-                    Don't have an account? <a href="#" onClick={(e) => { e.preventDefault(); navigate('register') }}>Register</a>
+                <button className="btn" style={{ width: '100%' }} onClick={handleLogin}>
+                    <i className="fas fa-sign-in-alt"></i> Access System
+                </button>
+                <p style={{ textAlign: 'center', marginTop: '20px' }}>
+                    <small>New User? <a href="#" style={{ color: 'var(--accent-cyan)' }} onClick={(e) => { e.preventDefault(); navigate('register') }}>Initialize Account</a></small>
                 </p>
             </div>
         </div>
@@ -88,21 +118,23 @@ function Register({ navigate }) {
     };
 
     return (
-        <div className="container" style={{ maxWidth: '400px', marginTop: '100px' }}>
+        <div className="container" style={{ maxWidth: '400px', marginTop: '10vh' }}>
             <div className="card" style={{ textAlign: 'center' }}>
-                <h1 className="brand-title">FinTrack 360</h1>
-                <h2>Create Account</h2>
-                {error && <p style={{ color: 'red' }}>{error}</p>}
+                <h1 className="brand-title"><i className="fas fa-cube"></i> FinTrack 360</h1>
+                <h2><i className="fas fa-user-plus"></i> New User Protocol</h2>
+                {error && <p className="text-danger">{error}</p>}
                 <input type="text" placeholder="Full Name" value={name} onChange={e => setName(e.target.value)} />
-                <input type="email" placeholder="Email" value={email} onChange={e => setEmail(e.target.value)} />
+                <input type="email" placeholder="Email Address" value={email} onChange={e => setEmail(e.target.value)} />
                 <input type="password" placeholder="Password" value={password} onChange={e => setPassword(e.target.value)} />
                 <select value={role} onChange={e => setRole(e.target.value)}>
                     <option value="USER">User</option>
                     <option value="ADMIN">Admin</option>
                 </select>
-                <button className="btn btn-primary" style={{ width: '100%' }} onClick={handleRegister}>Register</button>
-                <p style={{ textAlign: 'center', marginTop: '10px' }}>
-                    Already have an account? <a href="#" onClick={(e) => { e.preventDefault(); navigate('login') }}>Login</a>
+                <button className="btn" style={{ width: '100%' }} onClick={handleRegister}>
+                    <i className="fas fa-check-circle"></i> Register
+                </button>
+                <p style={{ textAlign: 'center', marginTop: '20px' }}>
+                    <small>Existing User? <a href="#" style={{ color: 'var(--accent-cyan)' }} onClick={(e) => { e.preventDefault(); navigate('login') }}>Login</a></small>
                 </p>
             </div>
         </div>
@@ -114,32 +146,39 @@ function UserDashboard({ user, navigate }) {
     const [budgets, setBudgets] = useState([]);
     const [goals, setGoals] = useState([]);
     const [incomes, setIncomes] = useState([]);
+    const [recurring, setRecurring] = useState([]);
 
     // Form States
     const [newExpense, setNewExpense] = useState({ amount: '', category: '', description: '', date: '' });
     const [newBudget, setNewBudget] = useState({ category: '', amount: '', startDate: '', endDate: '' });
     const [newGoal, setNewGoal] = useState({ name: '', targetAmount: '', deadline: '' });
     const [newIncome, setNewIncome] = useState({ amount: '', source: '', description: '', date: '' });
+    const [newRecurring, setNewRecurring] = useState({ amount: '', category: '', description: '', frequency: 'MONTHLY', nextRunDate: '', type: 'EXPENSE' });
 
     useEffect(() => {
         fetchData();
     }, []);
 
     const fetchData = async () => {
-        const expRes = await fetch('api/finance/expenses');
-        setExpenses(await expRes.json());
-        const budRes = await fetch('api/finance/budgets');
-        setBudgets(await budRes.json());
-        const goalRes = await fetch('api/finance/goals');
-        setGoals(await goalRes.json());
-        const incRes = await fetch('api/finance/incomes');
+        const expRes = await fetchWithAuth('api/finance/expenses');
+        if (expRes.ok) setExpenses(await expRes.json());
+
+        const budRes = await fetchWithAuth('api/finance/budgets');
+        if (budRes.ok) setBudgets(await budRes.json());
+
+        const goalRes = await fetchWithAuth('api/finance/goals');
+        if (goalRes.ok) setGoals(await goalRes.json());
+
+        const incRes = await fetchWithAuth('api/finance/incomes');
         if (incRes.ok) setIncomes(await incRes.json());
+
+        const recRes = await fetchWithAuth('api/finance/recurring');
+        if (recRes.ok) setRecurring(await recRes.json());
     };
 
     const addExpense = async () => {
-        await fetch('api/finance/expenses', {
+        await fetchWithAuth('api/finance/expenses', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(newExpense)
         });
         setNewExpense({ amount: '', category: '', description: '', date: '' });
@@ -147,9 +186,8 @@ function UserDashboard({ user, navigate }) {
     };
 
     const addBudget = async () => {
-        await fetch('api/finance/budgets', {
+        await fetchWithAuth('api/finance/budgets', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(newBudget)
         });
         setNewBudget({ category: '', amount: '', startDate: '', endDate: '' });
@@ -157,9 +195,8 @@ function UserDashboard({ user, navigate }) {
     };
 
     const addGoal = async () => {
-        await fetch('api/finance/goals', {
+        await fetchWithAuth('api/finance/goals', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ ...newGoal, currentAmount: 0, status: 'IN_PROGRESS' })
         });
         setNewGoal({ name: '', targetAmount: '', deadline: '' });
@@ -167,17 +204,34 @@ function UserDashboard({ user, navigate }) {
     };
 
     const addIncome = async () => {
-        await fetch('api/finance/incomes', {
+        await fetchWithAuth('api/finance/incomes', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(newIncome)
         });
         setNewIncome({ amount: '', source: '', description: '', date: '' });
         fetchData();
     };
 
+    const addRecurring = async () => {
+        await fetchWithAuth('api/finance/recurring', {
+            method: 'POST',
+            body: JSON.stringify(newRecurring)
+        });
+        setNewRecurring({ amount: '', category: '', description: '', frequency: 'MONTHLY', nextRunDate: '', type: 'EXPENSE' });
+        fetchData();
+    };
+
+    const deleteRecurring = async (id) => {
+        if (confirm('Stop this recurring transaction?')) {
+            await fetchWithAuth(`api/finance/recurring?id=${id}`, { method: 'DELETE' });
+            fetchData();
+        }
+    };
+
     const handleLogout = async () => {
         if (confirm('Are you sure you want to logout?')) {
+            localStorage.removeItem('token');
+            localStorage.removeItem('user');
             await fetch('api/auth/logout', { method: 'POST' });
             navigate('login');
         }
@@ -190,57 +244,66 @@ function UserDashboard({ user, navigate }) {
 
     return (
         <div className="container">
-            <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+            <header className="flex-between mb-20">
                 <div>
-                    <h1 className="brand-title" style={{ textAlign: 'left', fontSize: '2rem', marginBottom: '0' }}>FinTrack 360</h1>
-                    <h3 style={{ marginTop: '5px' }}>Dashboard ({user ? user.name : ''})</h3>
-                    <h3 style={{ color: balance >= 0 ? '#4caf50' : '#f44336' }}>
-                        Balance: ${balance.toFixed(2)}
-                    </h3>
+                    <h1 className="brand-title" style={{ fontSize: '2rem', marginBottom: '0' }}><i className="fas fa-cube"></i> FinTrack 360</h1>
+                    <h4 className="text-muted">Welcome, Commander {user ? user.name : ''}</h4>
                 </div>
-                <button className="btn" onClick={handleLogout}>Logout</button>
+                <div style={{ textAlign: 'right' }}>
+                    <h3 style={{ color: balance >= 0 ? 'var(--accent-green)' : 'var(--accent-pink)', fontSize: '1.5rem' }}>
+                        <i className="fas fa-wallet"></i> ${balance.toFixed(2)}
+                    </h3>
+                    <button className="btn btn-danger" onClick={handleLogout}><i className="fas fa-power-off"></i> Disconnect</button>
+                </div>
             </header>
 
-            {/* Income & Expenses Section */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '20px' }}>
+            {/* Quick Actions */}
+            <div className="grid-2 mb-20">
                 <div className="card">
-                    <h3>Add Credit (Income)</h3>
-                    <input type="number" placeholder="Amount" value={newIncome.amount} onChange={e => setNewIncome({ ...newIncome, amount: e.target.value })} />
+                    <h3><i className="fas fa-arrow-up text-success"></i> Add Credits</h3>
+                    <div className="grid-2">
+                        <input type="number" placeholder="Amount" value={newIncome.amount} onChange={e => setNewIncome({ ...newIncome, amount: e.target.value })} />
+                        <input type="date" value={newIncome.date} onChange={e => setNewIncome({ ...newIncome, date: e.target.value })} />
+                    </div>
                     <input type="text" placeholder="Source" value={newIncome.source} onChange={e => setNewIncome({ ...newIncome, source: e.target.value })} />
                     <input type="text" placeholder="Description" value={newIncome.description} onChange={e => setNewIncome({ ...newIncome, description: e.target.value })} />
-                    <input type="date" value={newIncome.date} onChange={e => setNewIncome({ ...newIncome, date: e.target.value })} />
-                    <button className="btn btn-primary" onClick={addIncome}>Add Credit</button>
+                    <button className="btn" onClick={addIncome}><i className="fas fa-plus"></i> Inject Credits</button>
                 </div>
 
                 <div className="card">
-                    <h3>Add Expense</h3>
-                    <input type="number" placeholder="Amount" value={newExpense.amount} onChange={e => setNewExpense({ ...newExpense, amount: e.target.value })} />
+                    <h3><i className="fas fa-arrow-down text-danger"></i> Log Expense</h3>
+                    <div className="grid-2">
+                        <input type="number" placeholder="Amount" value={newExpense.amount} onChange={e => setNewExpense({ ...newExpense, amount: e.target.value })} />
+                        <input type="date" value={newExpense.date} onChange={e => setNewExpense({ ...newExpense, date: e.target.value })} />
+                    </div>
                     <input type="text" placeholder="Category" value={newExpense.category} onChange={e => setNewExpense({ ...newExpense, category: e.target.value })} />
                     <input type="text" placeholder="Description" value={newExpense.description} onChange={e => setNewExpense({ ...newExpense, description: e.target.value })} />
-                    <input type="date" value={newExpense.date} onChange={e => setNewExpense({ ...newExpense, date: e.target.value })} />
-                    <button className="btn btn-primary" style={{ backgroundColor: '#f44336' }} onClick={addExpense}>Add Expense</button>
+                    <button className="btn btn-danger" onClick={addExpense}><i className="fas fa-minus"></i> Deduct Funds</button>
                 </div>
             </div>
 
+            {/* Recent Transactions */}
             <div className="card">
-                <h3>Recent Transactions</h3>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+                <h3><i className="fas fa-history"></i> Transaction Log</h3>
+                <div className="grid-2">
                     <div>
-                        <h4>Incomes</h4>
+                        <h4 className="text-success">Incoming Stream</h4>
                         <ul>
                             {incomes.map(inc => (
-                                <li key={inc.id} style={{ color: '#4caf50' }}>
-                                    +{inc.amount} ({inc.source}) <small>{inc.date}</small>
+                                <li key={inc.id}>
+                                    <span><i className="fas fa-arrow-up text-success"></i> {inc.source}</span>
+                                    <span className="text-success">+${inc.amount}</span>
                                 </li>
                             ))}
                         </ul>
                     </div>
                     <div>
-                        <h4>Expenses</h4>
+                        <h4 className="text-danger">Outgoing Stream</h4>
                         <ul>
                             {expenses.map(exp => (
-                                <li key={exp.id} style={{ color: '#f44336' }}>
-                                    -${exp.amount} ({exp.category}) <small>{exp.date}</small>
+                                <li key={exp.id}>
+                                    <span><i className="fas fa-arrow-down text-danger"></i> {exp.category}</span>
+                                    <span className="text-danger">-${exp.amount}</span>
                                 </li>
                             ))}
                         </ul>
@@ -248,29 +311,41 @@ function UserDashboard({ user, navigate }) {
                 </div>
             </div>
 
-            {/* Budgets Section */}
+            {/* Recurring Transactions Section */}
             <div className="card">
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <h3>My Budgets</h3>
-                </div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '10px' }}>
+                <h3><i className="fas fa-sync-alt"></i> Automated Protocols (Recurring)</h3>
+                <div className="grid-2">
                     <div>
-                        <h4>Create Budget</h4>
-                        <input type="text" placeholder="Category" value={newBudget.category} onChange={e => setNewBudget({ ...newBudget, category: e.target.value })} />
-                        <input type="number" placeholder="Limit Amount" value={newBudget.amount} onChange={e => setNewBudget({ ...newBudget, amount: e.target.value })} />
-                        <div style={{ display: 'flex', gap: '10px' }}>
-                            <input type="date" placeholder="Start Date" value={newBudget.startDate} onChange={e => setNewBudget({ ...newBudget, startDate: e.target.value })} />
-                            <input type="date" placeholder="End Date" value={newBudget.endDate} onChange={e => setNewBudget({ ...newBudget, endDate: e.target.value })} />
+                        <h4>Configure Protocol</h4>
+                        <div className="grid-2">
+                            <select value={newRecurring.type} onChange={e => setNewRecurring({ ...newRecurring, type: e.target.value })}>
+                                <option value="EXPENSE">Expense</option>
+                                <option value="INCOME">Income</option>
+                            </select>
+                            <select value={newRecurring.frequency} onChange={e => setNewRecurring({ ...newRecurring, frequency: e.target.value })}>
+                                <option value="DAILY">Daily</option>
+                                <option value="WEEKLY">Weekly</option>
+                                <option value="MONTHLY">Monthly</option>
+                            </select>
                         </div>
-                        <button className="btn btn-primary" onClick={addBudget}>Set Budget</button>
+                        <input type="number" placeholder="Amount" value={newRecurring.amount} onChange={e => setNewRecurring({ ...newRecurring, amount: e.target.value })} />
+                        <input type="text" placeholder="Category/Source" value={newRecurring.category} onChange={e => setNewRecurring({ ...newRecurring, category: e.target.value })} />
+                        <input type="text" placeholder="Description" value={newRecurring.description} onChange={e => setNewRecurring({ ...newRecurring, description: e.target.value })} />
+                        <input type="date" placeholder="Next Run Date" value={newRecurring.nextRunDate} onChange={e => setNewRecurring({ ...newRecurring, nextRunDate: e.target.value })} />
+                        <button className="btn" onClick={addRecurring}><i className="fas fa-cog"></i> Initialize Protocol</button>
                     </div>
                     <div>
-                        <h4>Active Budgets</h4>
+                        <h4>Active Protocols</h4>
                         <ul>
-                            {budgets.map(b => (
-                                <li key={b.id}>
-                                    <strong>{b.category}</strong>: ${b.amount} <br />
-                                    <small>{b.startDate} to {b.endDate}</small>
+                            {recurring.map(r => (
+                                <li key={r.id}>
+                                    <div>
+                                        <strong>{r.category}</strong>: ${r.amount} ({r.frequency}) <br />
+                                        <small className="text-muted">Next: {r.nextRunDate} ({r.type})</small>
+                                    </div>
+                                    <button className="btn btn-danger" style={{ padding: '5px 10px', fontSize: '0.8rem' }} onClick={() => deleteRecurring(r.id)}>
+                                        <i className="fas fa-stop"></i>
+                                    </button>
                                 </li>
                             ))}
                         </ul>
@@ -278,30 +353,48 @@ function UserDashboard({ user, navigate }) {
                 </div>
             </div>
 
-            {/* Goals Section */}
-            <div className="card">
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <h3>My Goals</h3>
+            {/* Budgets & Goals */}
+            <div className="grid-2 mt-20">
+                <div className="card">
+                    <h3><i className="fas fa-chart-pie"></i> Budget Limits</h3>
+                    <div className="grid-2">
+                        <input type="text" placeholder="Category" value={newBudget.category} onChange={e => setNewBudget({ ...newBudget, category: e.target.value })} />
+                        <input type="number" placeholder="Limit" value={newBudget.amount} onChange={e => setNewBudget({ ...newBudget, amount: e.target.value })} />
+                    </div>
+                    <div className="grid-2">
+                        <input type="date" placeholder="Start" value={newBudget.startDate} onChange={e => setNewBudget({ ...newBudget, startDate: e.target.value })} />
+                        <input type="date" placeholder="End" value={newBudget.endDate} onChange={e => setNewBudget({ ...newBudget, endDate: e.target.value })} />
+                    </div>
+                    <button className="btn" onClick={addBudget}><i className="fas fa-save"></i> Set Limit</button>
+                    <ul className="mt-20">
+                        {budgets.map(b => (
+                            <li key={b.id}>
+                                <span>{b.category}</span>
+                                <span>${b.amount}</span>
+                            </li>
+                        ))}
+                    </ul>
                 </div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
-                    <div>
-                        <h4>Set New Goal</h4>
-                        <input type="text" placeholder="Goal Name" value={newGoal.name} onChange={e => setNewGoal({ ...newGoal, name: e.target.value })} />
-                        <input type="number" placeholder="Target Amount" value={newGoal.targetAmount} onChange={e => setNewGoal({ ...newGoal, targetAmount: e.target.value })} />
+
+                <div className="card">
+                    <h3><i className="fas fa-bullseye"></i> Financial Targets</h3>
+                    <input type="text" placeholder="Goal Name" value={newGoal.name} onChange={e => setNewGoal({ ...newGoal, name: e.target.value })} />
+                    <div className="grid-2">
+                        <input type="number" placeholder="Target" value={newGoal.targetAmount} onChange={e => setNewGoal({ ...newGoal, targetAmount: e.target.value })} />
                         <input type="date" placeholder="Deadline" value={newGoal.deadline} onChange={e => setNewGoal({ ...newGoal, deadline: e.target.value })} />
-                        <button className="btn btn-primary" onClick={addGoal}>Create Goal</button>
                     </div>
-                    <div>
-                        <h4>Active Goals</h4>
-                        <ul>
-                            {goals.map(g => (
-                                <li key={g.id}>
-                                    <strong>{g.name}</strong>: ${g.currentAmount} / ${g.targetAmount} <br />
-                                    <small>Due: {g.deadline}</small>
-                                </li>
-                            ))}
-                        </ul>
-                    </div>
+                    <button className="btn" onClick={addGoal}><i className="fas fa-crosshairs"></i> Lock Target</button>
+                    <ul className="mt-20">
+                        {goals.map(g => (
+                            <li key={g.id}>
+                                <div>
+                                    <strong>{g.name}</strong> <br />
+                                    <small className="text-muted">Due: {g.deadline}</small>
+                                </div>
+                                <span>${g.currentAmount} / ${g.targetAmount}</span>
+                            </li>
+                        ))}
+                    </ul>
                 </div>
             </div>
         </div>
@@ -321,23 +414,23 @@ function AdminDashboard({ user, navigate }) {
     }, [activeTab]);
 
     const fetchStats = async () => {
-        const res = await fetch('api/admin/stats');
+        const res = await fetchWithAuth('api/admin/stats');
         if (res.ok) setStats(await res.json());
     };
 
     const fetchUsers = async () => {
-        const res = await fetch('api/admin/users');
+        const res = await fetchWithAuth('api/admin/users');
         if (res.ok) setUsers(await res.json());
     };
 
     const fetchLogs = async () => {
-        const res = await fetch('api/admin/logs');
+        const res = await fetchWithAuth('api/admin/logs');
         if (res.ok) setLogs(await res.json());
     };
 
     const deleteUser = async (id) => {
         if (confirm('Are you sure you want to delete this user?')) {
-            const res = await fetch(`api/admin/users?id=${id}`, { method: 'DELETE' });
+            const res = await fetchWithAuth(`api/admin/users?id=${id}`, { method: 'DELETE' });
             if (res.ok) fetchUsers();
             else alert('Failed to delete user');
         }
@@ -345,6 +438,8 @@ function AdminDashboard({ user, navigate }) {
 
     const handleLogout = async () => {
         if (confirm('Are you sure you want to logout?')) {
+            localStorage.removeItem('token');
+            localStorage.removeItem('user');
             await fetch('api/auth/logout', { method: 'POST' });
             navigate('login');
         }
@@ -352,41 +447,47 @@ function AdminDashboard({ user, navigate }) {
 
     return (
         <div className="container">
-            <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+            <header className="flex-between mb-20">
                 <div>
-                    <h1 className="brand-title" style={{ textAlign: 'left', fontSize: '2rem', marginBottom: '0' }}>FinTrack 360</h1>
-                    <h3 style={{ marginTop: '5px' }}>Admin Console ({user ? user.name : ''})</h3>
+                    <h1 className="brand-title" style={{ fontSize: '2rem', marginBottom: '0' }}><i className="fas fa-shield-alt"></i> FinTrack 360</h1>
+                    <h4 className="text-muted">Admin Console // {user ? user.name : ''}</h4>
                 </div>
-                <button className="btn" onClick={handleLogout}>Logout</button>
+                <button className="btn btn-danger" onClick={handleLogout}><i className="fas fa-power-off"></i> Terminate Session</button>
             </header>
 
-            <div style={{ marginBottom: '20px' }}>
-                <button className={`btn ${activeTab === 'overview' ? 'btn-primary' : ''}`} onClick={() => setActiveTab('overview')} style={{ marginRight: '10px' }}>Overview</button>
-                <button className={`btn ${activeTab === 'users' ? 'btn-primary' : ''}`} onClick={() => setActiveTab('users')} style={{ marginRight: '10px' }}>Users</button>
-                <button className={`btn ${activeTab === 'logs' ? 'btn-primary' : ''}`} onClick={() => setActiveTab('logs')}>Security Logs</button>
+            <div className="mb-20">
+                <button className={`btn ${activeTab === 'overview' ? '' : 'btn-danger'}`} onClick={() => setActiveTab('overview')} style={{ marginRight: '10px' }}>
+                    <i className="fas fa-tachometer-alt"></i> Overview
+                </button>
+                <button className={`btn ${activeTab === 'users' ? '' : 'btn-danger'}`} onClick={() => setActiveTab('users')} style={{ marginRight: '10px' }}>
+                    <i className="fas fa-users"></i> Users
+                </button>
+                <button className={`btn ${activeTab === 'logs' ? '' : 'btn-danger'}`} onClick={() => setActiveTab('logs')}>
+                    <i className="fas fa-file-code"></i> Security Logs
+                </button>
             </div>
 
             {activeTab === 'overview' && (
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '20px' }}>
+                <div className="grid-3">
                     <div className="card" style={{ textAlign: 'center' }}>
-                        <h3>Total Users</h3>
-                        <p style={{ fontSize: '2em', fontWeight: 'bold' }}>{stats.userCount}</p>
+                        <h3><i className="fas fa-users"></i> Total Users</h3>
+                        <p style={{ fontSize: '3em', fontWeight: 'bold', color: 'var(--accent-cyan)' }}>{stats.userCount}</p>
                     </div>
                     <div className="card" style={{ textAlign: 'center' }}>
-                        <h3>Total Expenses</h3>
-                        <p style={{ fontSize: '2em', fontWeight: 'bold' }}>{stats.expenseCount}</p>
+                        <h3><i className="fas fa-file-invoice-dollar"></i> Total Expenses</h3>
+                        <p style={{ fontSize: '3em', fontWeight: 'bold', color: 'var(--accent-pink)' }}>{stats.expenseCount}</p>
                     </div>
                     <div className="card" style={{ textAlign: 'center' }}>
-                        <h3>Total Budgets</h3>
-                        <p style={{ fontSize: '2em', fontWeight: 'bold' }}>{stats.budgetCount}</p>
+                        <h3><i className="fas fa-chart-pie"></i> Total Budgets</h3>
+                        <p style={{ fontSize: '3em', fontWeight: 'bold', color: 'var(--accent-green)' }}>{stats.budgetCount}</p>
                     </div>
                 </div>
             )}
 
             {activeTab === 'users' && (
                 <div className="card">
-                    <h3>User Management</h3>
-                    <table style={{ width: '100%', textAlign: 'left' }}>
+                    <h3><i className="fas fa-users-cog"></i> User Management</h3>
+                    <table>
                         <thead>
                             <tr>
                                 <th>ID</th>
@@ -405,7 +506,9 @@ function AdminDashboard({ user, navigate }) {
                                     <td>{u.role}</td>
                                     <td>
                                         {u.role !== 'ADMIN' && (
-                                            <button className="btn" style={{ backgroundColor: '#f44336', padding: '5px 10px' }} onClick={() => deleteUser(u.id)}>Delete</button>
+                                            <button className="btn btn-danger" style={{ padding: '5px 10px' }} onClick={() => deleteUser(u.id)}>
+                                                <i className="fas fa-trash"></i>
+                                            </button>
                                         )}
                                     </td>
                                 </tr>
@@ -417,8 +520,8 @@ function AdminDashboard({ user, navigate }) {
 
             {activeTab === 'logs' && (
                 <div className="card">
-                    <h3>Security Logs</h3>
-                    <table style={{ width: '100%', textAlign: 'left' }}>
+                    <h3><i className="fas fa-terminal"></i> Security Logs</h3>
+                    <table>
                         <thead>
                             <tr>
                                 <th>ID</th>
@@ -432,7 +535,7 @@ function AdminDashboard({ user, navigate }) {
                             {logs.map(log => (
                                 <tr key={log.id}>
                                     <td>{log.id}</td>
-                                    <td>{log.eventType}</td>
+                                    <td style={{ color: 'var(--accent-cyan)' }}>{log.eventType}</td>
                                     <td>{log.description}</td>
                                     <td>{log.ipAddress}</td>
                                     <td>{log.timestamp}</td>
